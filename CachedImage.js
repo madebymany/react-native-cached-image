@@ -58,7 +58,8 @@ const CachedImage = createReactClass({
             activityIndicatorProps: {},
             useQueryParamsInCacheKey: false,
             resolveHeaders: () => Promise.resolve({}),
-            cacheLocation: ImageCacheProvider.LOCATION.CACHE
+            cacheLocation: ImageCacheProvider.LOCATION.CACHE,
+            readOnlyCacheDirs: null
         };
     },
 
@@ -120,7 +121,10 @@ const CachedImage = createReactClass({
     processSource(source) {
         const url = _.get(source, ['uri'], null);
         if (ImageCacheProvider.isCacheable(url)) {
-            const options = _.pick(this.props, ['useQueryParamsInCacheKey', 'cacheGroup', 'cacheLocation']);
+            const options = _.pick(
+                this.props,
+                ['useQueryParamsInCacheKey', 'cacheGroup', 'cacheLocation', 'readOnlyCacheDirs']
+            );
 
             // try to get the image path from cache
             ImageCacheProvider.getCachedImagePath(url, options)
@@ -153,9 +157,14 @@ const CachedImage = createReactClass({
         }
         const props = getImageProps(this.props);
         const style = this.props.style || styles.image;
-        const source = (this.state.isCacheable && this.state.cachedImagePath) ? {
-                uri: 'file://' + this.state.cachedImagePath
-            } : this.props.source;
+        let source = this.props.source;
+        if (this.state.isCacheable && this.state.cachedImagePath) {
+            if (this.state.cachedImagePath.substr(0, 16) === 'bundle-assets://') {
+                source = {uri: `${Platform.OS === 'android' ? 'asset:/' : ''}${this.state.cachedImagePath.substr(16)}`}
+            } else {
+                source = {uri: 'file://' + this.state.cachedImagePath};
+            }
+        }
         if (this.props.fallbackSource && !this.state.cachedImagePath) {
           return this.props.renderImage({
               ...props,

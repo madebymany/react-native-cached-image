@@ -23,7 +23,8 @@ const defaultResolveHeaders = _.constant(defaultHeaders);
 const defaultOptions = {
     useQueryParamsInCacheKey: false,
     cacheLocation: LOCATION.CACHE,
-    // Right now this options is used just by cacheMultipleImages
+    readOnlyCacheDirs: null,
+  // Right now this options is used just by cacheMultipleImages
     // 0 means no limit, a number different than that would be number of allowed concurrent tasks
     numberOfParallelTasks: 0,
 };
@@ -139,6 +140,17 @@ function getCachePath(url, options) {
         host
     } = new URL(url);
     return host.replace(/[^a-z0-9]/gi, '').toLowerCase();
+}
+
+function getCachedImageFilePaths(url, options) {
+  const cachePath = getCachePath(url, options);
+  const cacheKey = generateCacheKey(url, options);
+  let paths = [`${getBaseDir(options.cacheLocation)}/${cachePath}/${cacheKey}`];
+  if(options.readOnlyCacheDirs) {
+    paths = paths.concat(options.readOnlyCacheDirs.map(location => `${getBaseDir(location)}/${cachePath}/${cacheKey}`));
+  }
+
+  return paths;
 }
 
 function getCachedImageFilePath(url, options) {
@@ -290,10 +302,10 @@ function isCacheable(url) {
  * @returns {Promise.<String>}
  */
 function getCachedImagePath(url, options = defaultOptions) {
-    const filePath = getCachedImageFilePath(url, options);
-    return fs.stat(filePath)
+    const filePaths = getCachedImageFilePaths(url, options);
+    const promises = filePaths.map(filePath => fs.stat(filePath)
         .then(res => {
-            if (res.type !== 'file') {
+            if (['file', 'asset'].indexOf(res.type) === -1) {
                 // reject the promise if res is not a file
                 throw new Error('Failed to get image from cache');
             }
@@ -304,11 +316,21 @@ function getCachedImagePath(url, options = defaultOptions) {
                         throw new Error('Failed to get image from cache');
                     });
             }
-            return filePath;
+        return filePath;
         })
         .catch(err => {
-            throw err;
-        })
+            return err;
+        }));
+    return Promise.all(promises)
+        .then(resolutions => {
+            const result = resolutions.reduce((accumulator, currentValue) => {
+            return Object.prototype.toString.apply(accumulator) === '[object String]' ? accumulator : currentValue;
+        }, new Error('Failed to get image from cache'));
+        if(Object.prototype.toString.apply(result) === '[object Error]') {
+            throw result;
+        }
+        return result;
+    });
 }
 
 /**
