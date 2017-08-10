@@ -3,20 +3,17 @@
 const _ = require('lodash');
 const PropTypes = require('prop-types');
 const createReactClass = require('create-react-class');
+const React = require('react');
 const ReactNative = require('react-native');
-const flattenStyle = ReactNative.StyleSheet.flatten;
 const ImageCacheProvider = require('./ImageCacheProvider');
+const R = require('ramda');
 
 const {
     View,
     Image,
     ActivityIndicator,
     NetInfo,
-    Platform
-} = ReactNative;
-
-
-const {
+    Platform,
     StyleSheet
 } = ReactNative;
 
@@ -194,10 +191,11 @@ const CachedImage = createReactClass({
 
         // if the imageStyle has borderRadius it will break the loading image view on android
         // so we only show the ActivityIndicator
-        if (!source || (Platform.OS === 'android' && flattenStyle(imageStyle).borderRadius)) {
+        const safeImageStyle = _.omit(StyleSheet.flatten(imageStyle), ['resizeMode']);
+        if (!source || (Platform.OS === 'android' && StyleSheet.flatten(imageStyle).borderRadius)) {
             if (LoadingIndicator) {
               return (
-                <View style={[imageStyle, activityIndicatorStyle]}>
+                <View style={[safeImageStyle, activityIndicatorStyle]}>
                   <LoadingIndicator {...activityIndicatorProps} />
                 </View>
               );
@@ -205,7 +203,7 @@ const CachedImage = createReactClass({
             return (
                 <ActivityIndicator
                     {...activityIndicatorProps}
-                    style={[imageStyle, activityIndicatorStyle]}/>
+                    style={[safeImageStyle, activityIndicatorStyle]}/>
             );
         }
         // otherwise render an image with the defaultSource with the ActivityIndicator on top of it
@@ -216,7 +214,7 @@ const CachedImage = createReactClass({
             source,
             children: (
                 LoadingIndicator
-                  ? <View style={[imageStyle, activityIndicatorStyle]}>
+                  ? <View style={[safeImageStyle, activityIndicatorStyle]}>
                       <LoadingIndicator {...activityIndicatorProps} />
                     </View>
                   : <ActivityIndicator
@@ -228,7 +226,7 @@ const CachedImage = createReactClass({
 });
 
 /**
- * Same as ReactNaive.Image.getSize only it will not download the image if it has a cached version
+ * Same as ReactNative.Image.getSize only it will not download the image if it has a cached version
  * @param uri
  * @param success
  * @param failure
